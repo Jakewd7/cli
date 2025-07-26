@@ -1,13 +1,19 @@
 package cmd
 
 import (
+	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/spf13/cobra"
 )
+
+//go:embed templates/*.tpl
+var templatesFS embed.FS
 
 var moduleCmd = &cobra.Command{
 	Use:   "create:module [name]",
@@ -25,45 +31,45 @@ func init() {
 
 func createModule(name string) {
 	base := "mod_" + strings.ToLower(name)
+
 	dirs := []string{
-		"config", "controllers", "middleware", "models",
-		"repository", "routes", "service", "utils",
+		"handlers", "models",
+		"repository", "service",
 	}
 
 	// Buat semua sub-folder
 	for _, d := range dirs {
-		path := base + "/" + d
-		os.MkdirAll(path, os.ModePerm)
+		path := filepath.Join(base, d)
+		_ = os.MkdirAll(path, os.ModePerm)
 	}
 
 	// Data untuk template parsing
 	data := map[string]string{
-		"Module": name,
-		"module": strings.ToLower(name),
+		"Module":  name,
+		"module":  strings.ToLower(name),
+		"ModRoot": getModulesName(),
 	}
 
-	// Daftar file dan path-nya
+	// Daftar file dan output path-nya
 	templates := map[string]string{
-		"templates/controller.go.tpl": base + "/controllers/handler.go",
-		"templates/route.go.tpl":      base + "/routes/" + data["module"] + "_routes.go",
-		"templates/model.go.tpl":      base + "/models/" + data["module"] + ".go",
-		"templates/repo.go.tpl":       base + "/repository/" + data["module"] + "_repository.go",
-		"templates/service.go.tpl":    base + "/service/" + data["module"] + "_service.go",
-		"templates/config.go.tpl":     base + "/config/config.go",
-		"templates/middleware.go.tpl": base + "/middleware/auth.go",
-		"templates/utils.go.tpl":      base + "/utils/hash.go",
+		"handler.go.tpl": base + "/handlers/handler.go",
+		"model.go.tpl":   base + "/models/" + data["module"] + ".go",
+		"repo.go.tpl":    base + "/repository/" + data["module"] + "_repository.go",
+		"service.go.tpl": base + "/service/" + data["module"] + "_service.go",
 	}
 
-	for tplPath, outPath := range templates {
-		content, err := os.ReadFile(tplPath)
+	for tplName, outPath := range templates {
+		tplContent, err := templatesFS.ReadFile("templates/" + tplName)
 		if err != nil {
-			fmt.Println("❌ Gagal baca template:", tplPath)
+			fmt.Println("❌ Gagal baca template:", tplName)
 			continue
 		}
 
-		tpl, err := template.New("tpl").Parse(string(content))
+		tpl, err := template.New(tplName).Funcs(template.FuncMap{
+			"capitalize": capitalize,
+		}).Parse(string(tplContent))
 		if err != nil {
-			fmt.Println("❌ Gagal parse:", tplPath)
+			fmt.Println("❌ Gagal parse:", tplName)
 			continue
 		}
 
@@ -74,7 +80,32 @@ func createModule(name string) {
 		}
 		defer f.Close()
 
-		tpl.Execute(f, data)
+		_ = tpl.Execute(f, data)
 		fmt.Println("✅ Dibuat:", outPath)
 	}
+}
+
+// getModulesName mengambil nama module dari go.mod
+func getModulesName() string {
+	content, err := os.ReadFile("go.mod")
+	if err != nil {
+		return "your_module" // fallback
+	}
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "module") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module"))
+		}
+	}
+	return "your_module"
+}
+
+// capitalize huruf pertama string
+func capitalize(str string) string {
+	if str == "" {
+		return ""
+	}
+	runes := []rune(str)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }
