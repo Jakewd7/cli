@@ -8,9 +8,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "goapp",
-	Short: "CLI scaffolding tool seperti breeze untuk Golang",
-	Long:  `GoApp adalah CLI scaffolding tool untuk membantu generate struktur modular di proyek Go.`,
+	Use:   "gojake",
+	Short: "Custom CLI scaffolding tool for Go projects",
+	Long:  `Gojake is a modular CLI tool that helps scaffold scalable Golang application structures.`,
 }
 
 func Execute() {
